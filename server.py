@@ -11,6 +11,7 @@ from reputation_system import ReputationSystem
 from loot_generation import LootGenerator
 from boss_system import BossMonsterGenerator
 from loot_system import LootSystem, Inventory
+from city import CityGenerator
 import os
 
 app = FastAPI()
@@ -25,6 +26,7 @@ reputation = ReputationSystem()
 loot_gen = LootGenerator()
 boss_gen = BossMonsterGenerator()
 loot_sys = LootSystem()
+city_gen = CityGenerator(width=100, height=100)
 
 from mythos_orchestrator import MythosOrchestrator
 orchestrator = MythosOrchestrator(relay, atmo)
@@ -45,6 +47,11 @@ import random
 async def handle_generate(req: GenerateRequest):
     # Bridge to specialized modules
     
+    if req.category == "city":
+        from dataclasses import asdict
+        city = city_gen.generate_city(req.params.get("theme", "Mythos City"))
+        return asdict(city)
+
     if req.category == "character":
         from rpg_engine import CharacterClass
         try:

@@ -21,13 +21,16 @@ import {
   Lock,
   Unlock,
   ChevronsUp,
-  Zap
+  Zap,
+  Package
 } from 'lucide-react';
 import { SKILL_TREES, Talent } from './constants/skillTrees';
 import { GenerationCategory, GeneratedContent, GeneratorParams, CinematicSequence } from './types';
 import { generateWorldContent } from './lib/gemini';
 import Viewport from './components/Viewport';
 import CinematicOverlay from './components/CinematicOverlay';
+import Inventory from './components/Inventory';
+import { LootItem } from './types';
 
 const CATEGORIES: { id: GenerationCategory; label: string; icon: any; description: string }[] = [
   { id: 'story', label: 'Story Arc', icon: BookOpen, description: 'Narrative foundations and plot points.' },
@@ -39,6 +42,7 @@ const CATEGORIES: { id: GenerationCategory; label: string; icon: any; descriptio
   { id: 'world', label: 'World Blueprint', icon: Map, description: 'SPEC-001: 1/4 Scale Procedural Open World Specs.' },
   { id: 'combat', label: 'Combat Encounter', icon: Sword, description: 'Simulated battle mechanics and encounter design.' },
   { id: 'boss', label: 'UBM Boss Monster', icon: Sparkles, description: 'Unique Boss Monster with complex mechanics.' },
+  { id: 'city', label: 'Settlement Gen', icon: Map, description: 'Procedural Village, Town or City layouts.' },
 ];
 
 const RANDOM_STARTERS: Record<GenerationCategory, { theme: string[], setting: string[], extra: string[] }> = {
@@ -86,6 +90,11 @@ const RANDOM_STARTERS: Record<GenerationCategory, { theme: string[], setting: st
     theme: ["The Void Leviathan", "Cinder Queen", "Storm Herald", "Clockwork Harbinger"],
     setting: ["The heart of a dying star", "An ancient deep-sea laboratory", "The pinnacle of a floating mountain"],
     extra: ["Phase-shifting at 50% HP", "Requires specific elemental weakness", "Summons minions regularly"]
+  },
+  city: {
+    theme: ["Shadow-Gate Village", "Aeon Metropolis", "Sun-Drenched Outpost", "The Iron Citadel"],
+    setting: ["Dense Residential Grid", "Sprawling Commercial Hub", "Fortified Industrial Sector"],
+    extra: ["High population density", "Integrated park systems", "Major landmarks at crossroads"]
   }
 };
 
@@ -101,6 +110,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'blueprint' | 'viewport'>('viewport');
   const [engineStatus, setEngineStatus] = useState<any>(null);
   const [cinematicActive, setCinematicActive] = useState(false);
+  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('mythos-history');
@@ -129,7 +139,7 @@ export default function App() {
     setIsGenerating(true);
     try {
       let pythonResult: any = null;
-      if (activeCategory === 'character' || activeCategory === 'boss' || activeCategory === 'combat') {
+      if (activeCategory === 'character' || activeCategory === 'boss' || activeCategory === 'combat' || activeCategory === 'city') {
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -162,7 +172,7 @@ export default function App() {
         id: Math.random().toString(36).substring(7),
         category: activeCategory,
         title: result.title,
-        description: result.description,
+        description: activeCategory === 'city' && pythonResult?.description ? pythonResult.description : result.description,
         aiPrompt: result.aiPrompt,
         sceneData: result.sceneData,
         characterStats: activeCategory === 'character' && pythonResult ? {
@@ -173,15 +183,30 @@ export default function App() {
           talentPoints: 0,
           stats: pythonResult.stats,
           skills: pythonResult.skills,
-          talents: {}
+          talents: {},
+          inventory: []
         } : result.characterStats ? {
           ...result.characterStats,
           xp: (result.characterStats as any).xp || 0,
           xpToNextLevel: (result.characterStats as any).xpToNextLevel || 100,
           talentPoints: (result.characterStats as any).talentPoints || 0,
-          talents: (result.characterStats as any).talents || {}
+          talents: (result.characterStats as any).talents || {},
+          inventory: (result.characterStats as any).inventory || []
         } : (result as any).characterStats,
         bossData: activeCategory === 'boss' && pythonResult ? pythonResult : (result as any).bossData,
+        cityData: activeCategory === 'city' && pythonResult ? pythonResult : (result as any).cityData,
+        lootData: activeCategory === 'item' ? {
+          id: Math.random().toString(36).substring(7),
+          ...(result.lootData || {}),
+          name: result.title,
+          level: 1,
+          rarity: 'Common',
+          type: 'artifact',
+          subtype: 'relic',
+          effects: {},
+          power: 10,
+          ...result.lootData
+        } : undefined,
         cinematicData: result.cinematicData,
         timestamp: Date.now()
       };
@@ -266,6 +291,56 @@ export default function App() {
     
     setHistory(history.map(h => h.id === selectedContent.id ? updated : h));
     setSelectedContent(updated);
+  };
+
+  const addToInventory = (characterId: string, item: LootItem) => {
+    setHistory(prev => prev.map(content => {
+      if (content.id === characterId && content.characterStats) {
+        return {
+          ...content,
+          characterStats: {
+            ...content.characterStats,
+            inventory: [...content.characterStats.inventory, { ...item, id: Math.random().toString(36).substring(7) }]
+          }
+        };
+      }
+      return content;
+    }));
+
+    if (selectedContent?.id === characterId && selectedContent.characterStats) {
+      setSelectedContent({
+        ...selectedContent,
+        characterStats: {
+          ...selectedContent.characterStats,
+          inventory: [...selectedContent.characterStats.inventory, { ...item, id: Math.random().toString(36).substring(7) }]
+        }
+      });
+    }
+  };
+
+  const removeFromInventory = (characterId: string, itemId: string) => {
+    setHistory(prev => prev.map(content => {
+      if (content.id === characterId && content.characterStats) {
+        return {
+          ...content,
+          characterStats: {
+            ...content.characterStats,
+            inventory: content.characterStats.inventory.filter(i => i.id !== itemId)
+          }
+        };
+      }
+      return content;
+    }));
+
+    if (selectedContent?.id === characterId && selectedContent.characterStats) {
+      setSelectedContent({
+        ...selectedContent,
+        characterStats: {
+          ...selectedContent.characterStats,
+          inventory: selectedContent.characterStats.inventory.filter(i => i.id !== itemId)
+        }
+      });
+    }
   };
 
   const unlockTalent = (talent: Talent) => {
@@ -453,13 +528,25 @@ export default function App() {
                     <div className="flex items-center gap-1.5">
                       {item.category === 'character' ? <Users size={10} className="text-accent" /> : <Map size={10} className="text-accent" />}
                       <span className="text-accent">{item.category === 'character' ? 'ENTITY_VITAL' : 'SAVED_LAYOUT'}</span>
+                      {activeCharacterId === item.id && <span className="text-green-500 ml-1 underline underline-offset-2">PRIORITY_TARGET</span>}
                     </div>
-                    <button 
-                      onClick={(e) => deleteSavedScene(item.id, e)}
-                      className="opacity-0 group-hover:opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
-                    >
-                      <Trash2 size={10} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {item.category === 'character' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveCharacterId(item.id); }}
+                          className={`opacity-40 hover:opacity-100 transition-all ${activeCharacterId === item.id ? 'text-green-500 opacity-100' : 'text-white'}`}
+                          title="Set as Primary Target"
+                        >
+                          <Target size={10} />
+                        </button>
+                      )}
+                      <button 
+                        onClick={(e) => deleteSavedScene(item.id, e)}
+                        className="opacity-0 group-hover:opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs font-medium truncate pr-4 text-white/80">{item.title}</p>
                   {item.category === 'character' && item.characterStats && (
@@ -490,15 +577,27 @@ export default function App() {
                   }`}
                 >
                   <div className="flex justify-between items-start mb-0.5">
-                    <p className="text-[9px] text-white/30 font-mono tracking-tighter">
-                      [{new Date(item.timestamp).toLocaleDateString()}]
-                    </p>
-                    <button 
-                      onClick={(e) => deleteFromHistory(item.id, e)}
-                      className="opacity-0 group-hover:opacity-40 hover:opacity-100 hover:text-accent transition-all"
-                    >
-                      <Trash2 size={10} />
-                    </button>
+                    <div className="flex items-center gap-1 text-[9px] text-white/30 font-mono tracking-tighter">
+                      <span>[{new Date(item.timestamp).toLocaleDateString()}]</span>
+                      {activeCharacterId === item.id && <span className="text-green-500 ml-1 italic tracking-widest text-[8px]">PRIORITY</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                       {item.category === 'character' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveCharacterId(item.id); }}
+                          className={`opacity-0 group-hover:opacity-40 hover:opacity-100 transition-all ${activeCharacterId === item.id ? 'text-green-500 opacity-100' : 'text-white'}`}
+                          title="Set as Primary Target"
+                        >
+                          <Target size={10} />
+                        </button>
+                      )}
+                      <button 
+                        onClick={(e) => deleteFromHistory(item.id, e)}
+                        className={`opacity-0 group-hover:opacity-40 hover:opacity-100 hover:text-accent transition-all`}
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs font-medium truncate pr-4 text-white/80">{item.title}</p>
                 </div>
@@ -669,6 +768,7 @@ export default function App() {
                       <div className="flex-1 min-h-0 relative">
                         <Viewport 
                           sceneData={selectedContent.sceneData} 
+                          cityData={selectedContent.cityData}
                           cinematicActive={cinematicActive}
                           cinematicSequence={selectedContent.cinematicData}
                         />
@@ -701,6 +801,41 @@ export default function App() {
                           <h3 className="text-2xl font-medium text-white mb-4">{selectedContent.title}</h3>
                           <div className="w-12 h-0.5 bg-accent/30 mb-6"></div>
                         </div>
+
+                        {selectedContent.category === 'city' && selectedContent.cityData && (
+                          <div className="mb-8 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                                <div className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Administrative Data</div>
+                                <div className="text-sm border-l-2 border-accent pl-3">
+                                  Pop. <span className="text-accent ml-2 font-mono">{selectedContent.cityData.population.toLocaleString()}</span>
+                                </div>
+                                <div className="mt-2 text-[9px] text-white/20 uppercase tracking-widest font-mono">
+                                  Grid_Scale: {selectedContent.cityData.width}x{selectedContent.cityData.height}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                                <div className="text-[10px] text-white/30 uppercase tracking-widest mb-2">Structural Inventory</div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[9px] text-white/40">
+                                  <div className="flex justify-between"><span>BLDGS</span> <span className="text-white">{selectedContent.cityData.buildings.length}</span></div>
+                                  <div className="flex justify-between"><span>PARKS</span> <span className="text-white">{selectedContent.cityData.features.parks.length}</span></div>
+                                  <div className="flex justify-between"><span>LANDMARKS</span> <span className="text-white">{selectedContent.cityData.features.landmarks.length}</span></div>
+                                  <div className="flex justify-between"><span>ROAD_SEG</span> <span className="text-white">{selectedContent.cityData.roads.length}</span></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl relative overflow-hidden">
+                              <div className="absolute top-0 right-0 p-4 opacity-5">
+                                <Map size={48} className="text-accent" />
+                              </div>
+                              <div className="text-[10px] text-accent uppercase tracking-widest mb-2 font-bold">Atmospheric Overlay</div>
+                              <div className="text-xs text-white/70 leading-relaxed italic whitespace-pre-wrap">
+                                {selectedContent.cityData.description}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {selectedContent.category === 'character' && selectedContent.characterStats && (
                           <div className="mb-8 space-y-4">
@@ -842,6 +977,13 @@ export default function App() {
                                 </div>
                               </div>
                             )}
+
+                            <div className="pt-4 border-t border-white/5">
+                              <Inventory 
+                                items={selectedContent.characterStats.inventory || []} 
+                                onRemove={(itemId) => removeFromInventory(selectedContent.id, itemId)}
+                              />
+                            </div>
                           </div>
                         )}
 
@@ -951,6 +1093,74 @@ export default function App() {
                                   </div>
                                 ))}
                               </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedContent.category === 'item' && selectedContent.lootData && (
+                          <div className="mb-8 p-6 bg-accent/5 border border-accent/20 rounded-2xl relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                              <Sword size={64} className="text-accent" />
+                            </div>
+
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="px-2 py-0.5 bg-accent text-black text-[10px] font-bold uppercase tracking-tighter rounded">
+                                {selectedContent.lootData.rarity} {selectedContent.lootData.type}
+                              </div>
+                              <div className="text-[10px] text-accent/60 font-mono">
+                                LVL_{selectedContent.lootData.level} • {selectedContent.lootData.subtype}
+                              </div>
+                            </div>
+                            
+                            <h3 className="text-xl font-bold text-white mb-2 tracking-tight group-hover:text-accent transition-colors">
+                              {selectedContent.lootData.name}
+                            </h3>
+
+                            <div className="flex items-center gap-2 mb-6">
+                              <Zap size={14} className="text-accent" />
+                              <span className="text-xs font-bold text-white/60 font-mono uppercase tracking-widest">Power Score: {selectedContent.lootData.power}</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                              <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-2 font-mono">Augmentations</div>
+                                <div className="space-y-1">
+                                  {Object.entries(selectedContent.lootData.effects).map(([stat, val], i) => (
+                                    <div key={i} className="flex justify-between text-[11px] font-mono">
+                                      <span className="text-white/40">{stat.toUpperCase()}</span>
+                                      <span className="text-accent">+{val}</span>
+                                    </div>
+                                  ))}
+                                  {Object.keys(selectedContent.lootData.effects).length === 0 && <p className="text-[10px] text-white/20 italic">No secondary effects</p>}
+                                </div>
+                              </div>
+                              <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-2 font-mono">Status</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
+                                  <span className="text-[10px] text-white/60 font-mono">READY_FOR_SYNC</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-3 relative z-10">
+                              <button
+                                onClick={() => {
+                                  const targetChar = (activeCharacterId ? [...history, ...savedScenes].find(h => h.id === activeCharacterId) : null);
+                                  if (targetChar && selectedContent.lootData) {
+                                    addToInventory(targetChar.id, selectedContent.lootData);
+                                    alert(`Added ${selectedContent.lootData.name} to ${targetChar.title}'s inventory`);
+                                  } else {
+                                    alert("Please select a character as 'Primary Target' from the sidebar first.");
+                                  }
+                                }}
+                                className="flex-1 py-3 bg-accent text-black font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.2)] disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                <Package size={14} /> 
+                                {activeCharacterId 
+                                  ? `Inject into ${[...history, ...savedScenes].find(h => h.id === activeCharacterId)?.title.split(' ')[0]}` 
+                                  : "Select character first"}
+                              </button>
                             </div>
                           </div>
                         )}

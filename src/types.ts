@@ -1,5 +1,5 @@
 
-export type GenerationCategory = 'story' | 'scene' | 'character' | 'item' | 'timeline' | 'flavor' | 'world' | 'combat' | 'boss';
+export type GenerationCategory = 'story' | 'scene' | 'character' | 'item' | 'timeline' | 'flavor' | 'world' | 'combat' | 'boss' | 'city';
 
 export interface SceneData {
   ambientColor: string;
@@ -24,6 +24,18 @@ export interface SceneData {
   }>;
 }
 
+export interface LootItem {
+  id: string;
+  name: string;
+  type: string;
+  subtype: string;
+  rarity: string;
+  level: number;
+  effects: Record<string, number>;
+  power: number;
+  description?: string;
+}
+
 export interface CharacterStats {
   level: number;
   class: string;
@@ -40,6 +52,7 @@ export interface CharacterStats {
   };
   skills: string[];
   talents: Record<string, boolean>;
+  inventory: LootItem[];
 }
 
 export interface BossData {
@@ -85,6 +98,29 @@ export interface CinematicSequence {
   subtitle?: string;
 }
 
+export interface CityData {
+  name: string;
+  width: number;
+  height: number;
+  buildings: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    type: string;
+    floors: number;
+    capacity: number;
+  }>;
+  roads: Array<[number, number]>;
+  population: number;
+  features: {
+    parks: Array<[number, number]>;
+    landmarks: Array<[number, number]>;
+    services: Array<[number, number]>;
+  };
+  description: string;
+}
+
 export interface GeneratedContent {
   id: string;
   category: GenerationCategory;
@@ -95,7 +131,9 @@ export interface GeneratedContent {
   sceneData?: SceneData;
   characterStats?: CharacterStats;
   bossData?: BossData;
+  cityData?: CityData;
   cinematicData?: CinematicSequence;
+  lootData?: LootItem;
 }
 
 export interface GeneratorParams {

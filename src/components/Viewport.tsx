@@ -4,7 +4,7 @@ import { OrbitControls, Sky, Stars, Environment, PerspectiveCamera, Text, Center
 import { Physics, usePlane, useBox, useSphere, useCylinder } from '@react-three/cannon';
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
-import { SceneData, CinematicSequence } from '../types';
+import { SceneData, CinematicSequence, CityData } from '../types';
 import Weather from './Weather';
 
 function CinematicCamera({ sequence, active }: { sequence?: CinematicSequence, active: boolean }) {
@@ -56,6 +56,7 @@ function CinematicCamera({ sequence, active }: { sequence?: CinematicSequence, a
 
 interface ViewportProps {
   sceneData?: SceneData;
+  cityData?: CityData;
   cinematicActive?: boolean;
   cinematicSequence?: CinematicSequence;
 }
@@ -220,10 +221,64 @@ function PhysicalObject({ obj, playerPos }: { obj: SceneData['objects'][0], play
   );
 }
 
-function World({ sceneData, cinematicActive, cinematicSequence }: ViewportProps) {
+function World({ sceneData, cityData, cinematicActive, cinematicSequence }: ViewportProps) {
   const playerPos = useRef(new THREE.Vector3());
 
-  if (!sceneData) return (
+  const effectiveSceneData = useMemo<SceneData | null>(() => {
+    if (cityData) {
+      // Map CityData to SceneData
+      const objects: SceneData['objects'] = [];
+      
+      // Buildings
+      cityData.buildings.forEach(b => {
+        objects.push({
+          type: 'building',
+          position: [b.x - cityData.width/2, b.floors, b.y - cityData.height/2],
+          scale: [b.width, b.floors, b.height],
+          color: b.type === 'residential' ? '#4ade80' : b.type === 'commercial' ? '#3b82f6' : '#f87171',
+          description: `${b.type.toUpperCase()} BLOCK - ${b.floors} FLOORS`,
+          physics: { type: 'fixed', mass: 1000 }
+        });
+      });
+
+      // Roads
+      cityData.roads.forEach(([rx, ry]) => {
+        objects.push({
+          type: 'cube',
+          position: [rx - cityData.width/2, 0.06, ry - cityData.height/2],
+          scale: [1.1, 0.1, 1.1],
+          color: '#333333',
+          description: 'ROAD_SECTOR',
+          physics: { type: 'fixed' }
+        });
+      });
+
+      // Parks
+      cityData.features.parks.forEach(([px, py]) => {
+        objects.push({
+          type: 'tree',
+          position: [px - cityData.width/2, 1, py - cityData.height/2],
+          scale: [1, 2, 1],
+          color: '#16a34a',
+          description: 'CITY_PARK_TREE'
+        });
+      });
+
+      return {
+        ambientColor: '#222222',
+        skyColor: '#000000',
+        fogColor: '#000000',
+        terrainColor: '#111111',
+        proceduralSeed: 42,
+        terrainComplexity: 0.1,
+        objects
+      };
+    }
+    if (sceneData) return sceneData;
+    return null;
+  }, [sceneData, cityData]);
+
+  if (!effectiveSceneData) return (
     <>
       <ambientLight intensity={0.5} />
       <pointLight position={[10, 10, 10]} />
@@ -239,26 +294,26 @@ function World({ sceneData, cinematicActive, cinematicSequence }: ViewportProps)
   return (
     <>
       <CinematicCamera active={cinematicActive || false} sequence={cinematicSequence} />
-      <ambientLight intensity={0.4} color={sceneData.ambientColor} />
+      <ambientLight intensity={0.4} color={effectiveSceneData.ambientColor} />
       <pointLight position={[20, 30, 20]} intensity={1.5} castShadow />
       <Sky sunPosition={[100, 20, 100]} />
       <Stars radius={150} depth={50} count={8000} factor={4} saturation={0.5} fade speed={1} />
-      <fog attach="fog" args={[sceneData.fogColor, 10, 60]} />
+      <fog attach="fog" args={[effectiveSceneData.fogColor, 10, 60]} />
 
       <Physics gravity={[0, -9.81, 0]} allowSleep>
         <ProceduralTerrain 
-          seed={sceneData.proceduralSeed} 
-          complexity={sceneData.terrainComplexity} 
-          color={sceneData.terrainColor} 
+          seed={effectiveSceneData.proceduralSeed} 
+          complexity={effectiveSceneData.terrainComplexity} 
+          color={effectiveSceneData.terrainColor} 
         />
         <Weather 
-          type={sceneData.ambientColor === '#1a1a2e' ? 'rain' : sceneData.skyColor === '#f0f0f0' ? 'snow' : 'none'} 
+          type={effectiveSceneData.ambientColor === '#1a1a2e' ? 'rain' : effectiveSceneData.skyColor === '#f0f0f0' ? 'snow' : 'none'} 
         />
-        {sceneData.fogColor && (
-          <fogExp2 attach="fog" args={[sceneData.fogColor, 0.02]} />
+        {effectiveSceneData.fogColor && (
+          <fogExp2 attach="fog" args={[effectiveSceneData.fogColor, 0.02]} />
         )}
         <PhysicsPlayer onMove={(p) => playerPos.current.copy(p)} />
-        {sceneData.objects.map((obj, i) => (
+        {effectiveSceneData.objects.map((obj, i) => (
           <PhysicalObject key={i} obj={obj} playerPos={playerPos.current} />
         ))}
       </Physics>
@@ -268,7 +323,7 @@ function World({ sceneData, cinematicActive, cinematicSequence }: ViewportProps)
   );
 }
 
-export default function Viewport({ sceneData, cinematicActive, cinematicSequence }: ViewportProps) {
+export default function Viewport({ sceneData, cityData, cinematicActive, cinematicSequence }: ViewportProps) {
   const map = useMemo(() => [
     { name: 'forward', keys: ['ArrowUp', 'KeyW'] },
     { name: 'backward', keys: ['ArrowDown', 'KeyS'] },
@@ -284,7 +339,7 @@ export default function Viewport({ sceneData, cinematicActive, cinematicSequence
           <PerspectiveCamera makeDefault position={[12, 12, 12]} fov={50} />
           {!cinematicActive && <OrbitControls enableDamping panSpeed={0.5} rotateSpeed={0.5} maxPolarAngle={Math.PI / 1.8} />}
           <Suspense fallback={null}>
-            <World sceneData={sceneData} cinematicActive={cinematicActive} cinematicSequence={cinematicSequence} />
+            <World sceneData={sceneData} cityData={cityData} cinematicActive={cinematicActive} cinematicSequence={cinematicSequence} />
             <Environment preset="night" />
           </Suspense>
         </Canvas>
@@ -294,10 +349,10 @@ export default function Viewport({ sceneData, cinematicActive, cinematicSequence
         <p className="text-[11px] text-white/60 font-mono text-accent">PHYSICS_ENABLED: TRUE</p>
         <p className="text-[11px] text-white/60 font-mono text-accent">PROCEDURAL_PASS: ACTIVE</p>
         <p className="text-[11px] text-white/60 font-mono">
-          RENDER_MODE: {sceneData ? 'DYNAMIC_BLUEPRINT' : 'SYSTEM_IDLE'}
+          RENDER_MODE: {(sceneData || cityData) ? 'DYNAMIC_BLUEPRINT' : 'SYSTEM_IDLE'}
         </p>
         <p className="text-[11px] text-white/60 font-mono">
-          ENTITIES: {sceneData?.objects.length || 0}
+          ENTITIES: {(sceneData?.objects.length || 0) + (cityData?.buildings.length || 0) + (cityData?.roads.length || 0)}
         </p>
       </div>
       <div className="absolute bottom-4 left-4 text-[10px] text-white/40 font-mono flex flex-col gap-1">

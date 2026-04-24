@@ -11,12 +11,12 @@ export async function generateWorldContent(params: GeneratorParams) {
   
   const categoryGuidance = {
     story: "Focus on narrative arcs, plot twists, and high-level progression.",
-    scene: "Focus on lighting, atmosphere, particles, and architectural details. The AI Prompt should be optimized for environment concept art.",
+    scene: "Focus on lighting, atmosphere, particles, and architectural details. You MUST define specific lighting (e.g., volumetric god-rays, cyan moonlight, glowing bioluminescence), weather conditions (e.g., torrential downpour, swirling sandstorm, oppressive heat haze), and exact time of day. The AI Prompt should be optimized for premium environment concept art.",
     character: "Develop a detailed character description including physical appearance, personality traits, and a rich backstory with potential plot hooks. The AI Prompt should be optimized for character concept sheets or 3D models.",
     item: "Detail the item's origin, unique abilities, and intricate visual characteristics (materials, glows, wear). The AI Prompt should be optimized for technical 3D asset generation.",
     timeline: "Generate a coherent historical timeline featuring plausible events such as major conflicts, groundbreaking discoveries, and significant cultural shifts based on the starting period and turning points provided.",
     flavor: "Focus on bite-sized, evocative prose that hints at deeper lore.",
-    world: "Design a procedural open-world blueprint based on SPEC-001. This includes a 1/4 scale Earth model, Google Maps data integration for landmasses, terrain modules (Perlin/Fractal noise), biome classification, and POI clustering (cities/landmarks) based on real-world geography.",
+    world: "Design a procedural open-world blueprint based on SPEC-001 (1/4 scale). Emphasize high-density POI clustering (e.g., urban hubs, strategic outpost networks) and realistic biome transitions driven by altitude and climate models. Ensure high terrain complexity with layered geological formations.",
     combat: "Design a complex combat encounter or boss-fight mechanics. Include details on enemy attack patterns, status effects (DoT, stuns, bleeds), weapon scaling (STR/DEX/INT), and tactical AoE considerations. The AI Prompt should be optimized for dynamic battle sequence concept art or VFX design."
   }[params.category];
 
@@ -220,6 +220,20 @@ export async function generateWorldContent(params: GeneratorParams) {
                     }
                   }
                 }
+              }
+            },
+            lootData: {
+              type: Type.OBJECT,
+              optional: true,
+              properties: {
+                name: { type: Type.STRING },
+                type: { type: Type.STRING },
+                subtype: { type: Type.STRING },
+                rarity: { type: Type.STRING },
+                level: { type: Type.NUMBER },
+                effects: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                power: { type: Type.NUMBER },
+                description: { type: Type.STRING }
               }
             }
           },

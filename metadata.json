@@ -1,6 +1,6 @@
 {
   "name": "Mythos Architect",
-  "description": "An AI-powered world-building engine for generating stories, scenes, characters, items, and timelines as high-fidelity prompts for game development.",
+  "description": "An AI-powered world-building engine for generating stories, settlements, scenes, characters, items, and timelines as high-fidelity prompts for game development.",
   "requestFramePermissions": [],
   "majorCapabilities": ["AI Content Generation", "Game Design Tools"]
 }
