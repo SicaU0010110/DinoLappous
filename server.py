@@ -9,6 +9,8 @@ from dungeon_gen import DungeonGenerator
 from day_night_system import DayNightCycle
 from reputation_system import ReputationSystem
 from loot_generation import LootGenerator
+from boss_system import BossMonsterGenerator
+from loot_system import LootSystem, Inventory
 import os
 
 app = FastAPI()
@@ -21,6 +23,8 @@ relay.start()
 day_night = DayNightCycle()
 reputation = ReputationSystem()
 loot_gen = LootGenerator()
+boss_gen = BossMonsterGenerator()
+loot_sys = LootSystem()
 
 from mythos_orchestrator import MythosOrchestrator
 orchestrator = MythosOrchestrator(relay, atmo)
@@ -42,14 +46,24 @@ async def handle_generate(req: GenerateRequest):
     # Bridge to specialized modules
     
     if req.category == "character":
+        from rpg_engine import CharacterClass
+        try:
+            c_class = CharacterClass[req.params.get("char_class", "Warrior").upper()]
+        except KeyError:
+            c_class = CharacterClass.WARRIOR
+            
         char = CharacterCreator.create_character(
             req.params.get("name", "Unknown"),
-            req.params.get("race", "Human"),
-            req.params.get("traits", "")
+            c_class
         )
         relay.send("world.character_created", char)
         return char
     
+    if req.category == "boss":
+        boss = boss_gen.generate_boss_monster(req.params.get("level", 1))
+        relay.send("world.boss_spawned", boss)
+        return boss
+
     if req.category == "atmosphere":
         return {
             "atmosphere": atmo.get_current_atmosphere_text(),

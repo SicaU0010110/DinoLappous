@@ -44,7 +44,23 @@ export async function generateWorldContent(params: GeneratorParams) {
     Format your response as a JSON object with:
     - title: A concise name for the generated piece.
     - description: The actual creative content (the story, character bio, world spec, etc).
-    - aiPrompt: A highly detailed, technical, and artistic prompt designed to be used in a generative AI model (e.g. "Cinematic shot of...", "8k height map texture for...", "3D modular asset of...").
+    - aiPrompt: A highly detailed prompt for an image generator.
+    - sceneData: A Three.js scene configuration object. Ensure each object in 'objects' has a 'physics' block if it should interact with the world:
+        - Buildings should be 'fixed'.
+        - Rocks, trees, and small items should be 'dynamic' or 'kinematic'.
+        - Assign realistic 'mass' (e.g., 500 for rocks, 5 for items), 'friction', and 'restitution'.
+    - bossData: (Only for 'boss' category) Design high-stakes, multi-phase boss battles. Include:
+        - name, level, element, unique_trait
+        - stats: { max_hp, attack, defense, speed, etc }
+        - attacks: Array of unique moves with multipliers and effects.
+        - weaknesses & resistances: Strategic elemental interactions.
+        - special_mechanics: An object with 'name', 'description' (detailing complex environmental triggers, phase shifts at 50% HP, or specific player requirements like "Must destroy 3 pylon objects to break shield"), 'triggers' (string array), and 'phase_shift' (string "True"/"False").
+    - cinematicData: (Always include if sceneData exists) A cinematic sequence object with:
+        - title: The epic name of the sequence.
+        - subtitle: A shorter descriptor.
+        - type: 'intro', 'encounter', 'event', or 'outro'.
+        - cameraPath: array of { position: [x,y,z], lookAt: [x,y,z], duration: number } - create a dynamic 5-10 second sequence with multiple points.
+        - subtitles: array of { text: string, timestamp: number, duration: number } - provide atmospheric narrative beats synchronized with camera timing.
     
     Context:
     Theme: ${params.theme}
@@ -68,8 +84,146 @@ export async function generateWorldContent(params: GeneratorParams) {
             title: { type: Type.STRING },
             description: { type: Type.STRING },
             aiPrompt: { type: Type.STRING },
+            sceneData: {
+              type: Type.OBJECT,
+              properties: {
+                ambientColor: { type: Type.STRING },
+                skyColor: { type: Type.STRING },
+                fogColor: { type: Type.STRING },
+                terrainColor: { type: Type.STRING },
+                proceduralSeed: { type: Type.NUMBER },
+                terrainComplexity: { type: Type.NUMBER },
+                objects: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      type: { type: Type.STRING, enum: ['cube', 'sphere', 'pyramid', 'tree', 'rock', 'building'] },
+                      position: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                      scale: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                      color: { type: Type.STRING },
+                      description: { type: Type.STRING },
+                      physics: {
+                        type: Type.OBJECT,
+                        optional: true,
+                        properties: {
+                          mass: { type: Type.NUMBER },
+                          restitution: { type: Type.NUMBER },
+                          friction: { type: Type.NUMBER },
+                          canSleep: { type: Type.BOOLEAN },
+                          type: { type: Type.STRING, enum: ['dynamic', 'fixed', 'kinematic'] }
+                        }
+                      }
+                    },
+                    required: ['type', 'position', 'scale', 'color', 'description'],
+                  }
+                }
+              },
+              required: ['ambientColor', 'skyColor', 'fogColor', 'terrainColor', 'objects'],
+            },
+            characterStats: {
+              type: Type.OBJECT,
+              optional: true,
+              properties: {
+                level: { type: Type.NUMBER },
+                class: { type: Type.STRING },
+                xp: { type: Type.NUMBER },
+                xpToNextLevel: { type: Type.NUMBER },
+                talentPoints: { type: Type.NUMBER },
+                stats: {
+                  type: Type.OBJECT,
+                  properties: {
+                    strength: { type: Type.NUMBER },
+                    dexterity: { type: Type.NUMBER },
+                    intelligence: { type: Type.NUMBER },
+                    constitution: { type: Type.NUMBER },
+                    wisdom: { type: Type.NUMBER },
+                    charisma: { type: Type.NUMBER },
+                  }
+                },
+                skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+                talents: { type: Type.OBJECT, additionalProperties: { type: Type.BOOLEAN } }
+              }
+            },
+            bossData: {
+              type: Type.OBJECT,
+              optional: true,
+              properties: {
+                name: { type: Type.STRING },
+                level: { type: Type.NUMBER },
+                element: { type: Type.STRING },
+                unique_trait: { type: Type.STRING },
+                stats: {
+                  type: Type.OBJECT,
+                  properties: {
+                    max_hp: { type: Type.NUMBER },
+                    current_hp: { type: Type.NUMBER },
+                    attack: { type: Type.NUMBER },
+                    defense: { type: Type.NUMBER },
+                    speed: { type: Type.NUMBER },
+                    critical_chance: { type: Type.NUMBER }
+                  }
+                },
+                attacks: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      type: { type: Type.STRING },
+                      element: { type: Type.STRING },
+                      damage_multiplier: { type: Type.NUMBER },
+                      cooldown: { type: Type.NUMBER },
+                      special_effect: { type: Type.STRING }
+                    }
+                  }
+                },
+                weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+                resistances: { type: Type.ARRAY, items: { type: Type.STRING } },
+                special_mechanics: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    triggers: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    phase_shift: { type: Type.STRING }
+                  }
+                }
+              }
+            },
+            cinematicData: {
+              type: Type.OBJECT,
+              optional: true,
+              properties: {
+                title: { type: Type.STRING },
+                subtitle: { type: Type.STRING },
+                type: { type: Type.STRING, enum: ['intro', 'encounter', 'event', 'outro'] },
+                cameraPath: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      position: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                      lookAt: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                      duration: { type: Type.NUMBER }
+                    }
+                  }
+                },
+                subtitles: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      text: { type: Type.STRING },
+                      timestamp: { type: Type.NUMBER },
+                      duration: { type: Type.NUMBER }
+                    }
+                  }
+                }
+              }
+            }
           },
-          required: ["title", "description", "aiPrompt"],
+          required: ["title", "description", "aiPrompt", "sceneData"],
         }
       },
     });

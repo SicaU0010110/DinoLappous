@@ -12,7 +12,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@react-three/cannon": "^6.6.0",
+    "@react-three/drei": "^10.0.0-rc.3",
+    "@react-three/fiber": "^9.0.0-rc.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -23,6 +27,9 @@
     "pydantic": "^0.0.1-security",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "simplex-noise": "^4.0.3",
+    "three": "^0.184.0",
+    "three-stdlib": "^2.30.4",
     "torch": "^0.2.7",
     "uvicorn": "^0.0.1-security",
     "vite": "^6.2.0"
